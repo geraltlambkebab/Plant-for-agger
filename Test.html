@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>植物澆水紀錄</title>
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    body{font-family:system-ui, -apple-system, Arial; margin:12px; max-width:720px;}
+    header{display:flex;align-items:center;gap:12px}
+    .plant{border:1px solid #ddd;padding:10px;margin:10px 0;border-radius:8px}
+    label{display:block;margin-top:8px;font-weight:600}
+    input,button,select{width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid #ccc}
+    .row{display:flex;gap:8px}
+    .row > *{flex:1}
+    img.thumb{max-width:100%;border-radius:6px;margin-top:8px}
+    .small{font-size:0.9rem;color:#555}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>植物澆水紀錄</h1>
+  </header>
+
+  <div>
+    <label>選擇植物</label>
+    <select id="plantSelect"></select>
+
+    <label>目標重量 (g)</label>
+    <input id="targetWeight" type="number" min="0" />
+
+    <label>目前重量 (g)</label>
+    <input id="currentWeight" type="number" min="0" />
+
+    <div class="row">
+      <button id="compareBtn">比較重量</button>
+      <button id="takePhotoBtn">拍照 / 選照片</button>
+    </div>
+
+    <input id="photoInput" type="file" accept="image/*;capture=camera" style="display:none" />
+
+    <div id="photoPreview"></div>
+
+    <label>說明 / 備註</label>
+    <input id="note" type="text" placeholder="例如：葉子有點黃" />
+
+    <div class="row" style="margin-top:10px">
+      <button id="waterBtn" style="background:#0a84ff;color:#fff">記錄澆水</button>
+      <button id="savePlantBtn">儲存植物設定</button>
+    </div>
+
+    <div id="status" class="small" style="margin-top:10px"></div>
+  </div>
+
+  <hr />
+
+  <h2>紀錄</h2>
+  <div id="records"></div>
+
+<script>
+/* 簡單資料結構存在 localStorage，實務可改用 IndexedDB */
+const plantsKey = 'plants_v1';
+const recordsKey = 'records_v1';
+
+const defaultPlants = [
+  {id:'matsu', name:'日本松樹', target:3000},
+  {id:'turtle', name:'山烏龜', target:1500},
+  {id:'banyan', name:'印度榕', target:2500}
+];
+
+function loadPlants(){
+  const raw = localStorage.getItem(plantsKey);
+  if(!raw){ localStorage.setItem(plantsKey, JSON.stringify(defaultPlants)); return defaultPlants; }
+  return JSON.parse(raw);
+}
+function savePlants(plants){ localStorage.setItem(plantsKey, JSON.stringify(plants)); }
+
+function loadRecords(){ return JSON.parse(localStorage.getItem(recordsKey) || '[]'); }
+function saveRecords(r){ localStorage.setItem(recordsKey, JSON.stringify(r)); }
+
+const plantSelect = document.getElementById('plantSelect');
+const targetWeight = document.getElementById('targetWeight');
+const currentWeight = document.getElementById('currentWeight');
+const compareBtn = document.getElementById('compareBtn');
+const takePhotoBtn = document.getElementById('takePhotoBtn');
+const photoInput = document.getElementById('photoInput');
+const photoPreview = document.getElementById('photoPreview');
+const noteInput = document.getElementById('note');
+const waterBtn = document.getElementById('waterBtn');
+const savePlantBtn = document.getElementById('savePlantBtn');
+const status = document.getElementById('status');
+const recordsDiv = document.getElementById('records');
+
+let currentPhotoBlob = null;
+
+function populatePlantSelect(){
+  const plants = loadPlants();
+  plantSelect.innerHTML = plants.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  const sel = plants[0];
+  if(sel){ targetWeight.value = sel.target; }
+}
+populatePlantSelect();
+
+plantSelect.addEventListener('change', ()=>{
+  const plants = loadPlants();
+  const p = plants.find(x=>x.id===plantSelect.value);
+  if(p) targetWeight.value = p.target;
+});
+
+savePlantBtn.addEventListener('click', ()=>{
+  const plants = loadPlants();
+  const id = plantSelect.value;
+  const p = plants.find(x=>x.id===id);
+  if(p){
+    p.target = Number(targetWeight.value) || p.target;
+    savePlants(plants);
+    status.textContent = '已儲存植物目標重量。';
+    setTimeout(()=>status.textContent='',2000);
+  }
+});
+
+compareBtn.addEventListener('click', ()=>{
+  const cur = Number(currentWeight.value);
+  const tgt = Number(targetWeight.value);
+  if(!cur || !tgt){ status.textContent='請輸入目前重量與目標重量。'; return; }
+  const diff = cur - tgt;
+  if(diff >= 0) status.textContent = `目前重量比目標多 ${diff} g，暫時不需澆水。`;
+  else status.textContent = `目前比目標少 ${Math.abs(diff)} g，可能需要澆水。`;
+});
+
+takePhotoBtn.addEventListener('click', ()=> photoInput.click());
+photoInput.addEventListener('change', (e)=>{
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  currentPhotoBlob = f;
+  const url = URL.createObjectURL(f);
+  photoPreview.innerHTML = `<img class="thumb" src="${url}" alt="photo">`;
+});
+
+waterBtn.addEventListener('click', ()=>{
+  const plantId = plantSelect.value;
+  const cur = Number(currentWeight.value) || null;
+  const tgt = Number(targetWeight.value) || null;
+  const note = noteInput.value || '';
+  const now = new Date().toISOString();
+  const recs = loadRecords();
+  const id = 'r'+Date.now();
+  // 儲存照片為 base64（簡單做法）
+  if(currentPhotoBlob){
+    const reader = new FileReader();
+    reader.onload = function(){ 
+      const base64 = reader.result;
+      recs.unshift({id, plantId, cur, tgt, note, date:now, photo:base64});
+      saveRecords(recs);
+      currentPhotoBlob = null;
+      photoPreview.innerHTML = '';
+      noteInput.value = '';
+      currentWeight.value = '';
+      renderRecords();
+      status.textContent = '已記錄澆水。';
+      setTimeout(()=>status.textContent='',2000);
+    };
+    reader.readAsDataURL(currentPhotoBlob);
+  } else {
+    recs.unshift({id, plantId, cur, tgt, note, date:now, photo:null});
+    saveRecords(recs);
+    renderRecords();
+    status.textContent = '已記錄澆水（無照片）。';
+    setTimeout(()=>status.textContent='',2000);
+  }
+});
+
+function daysSince(iso){
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  return Math.floor(diff / 86400000);
+}
+
+function renderRecords(){
+  const recs = loadRecords();
+  const plants = loadPlants();
+  if(recs.length===0){ recordsDiv.innerHTML = '<p class="small">尚無紀錄</p>'; return; }
+  recordsDiv.innerHTML = recs.map(r=>{
+    const p = plants.find(x=>x.id===r.plantId) || {name:r.plantId};
+    const days = daysSince(r.date);
+    const photoHtml = r.photo ? `<img class="thumb" src="${r.photo}" />` : '';
+    const curTxt = r.cur ? `${r.cur} g` : '未量';
+    const tgtTxt = r.tgt ? `${r.tgt} g` : '未設定';
+    return `<div class="plant">
+      <strong>${p.name}</strong> <div class="small">澆水：${new Date(r.date).toLocaleString()}（${days} 天前）</div>
+      <div class="small">目前重量：${curTxt}；目標：${tgtTxt}</div>
+      ${photoHtml}
+      <div class="small">備註：${r.note || '-'}</div>
+    </div>`;
+  }).join('');
+}
+renderRecords();
+
+/* 註冊 service worker（PWA） */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{ /* ignore */ });
+}
+</script>
+</body>
+</html>
