@@ -6,23 +6,28 @@
   <title>植物澆水紀錄</title>
   <link rel="manifest" href="./manifest.json" />
   <style>
-    body{font-family:system-ui, -apple-system, Arial; margin:12px; max-width:720px;}
-    header{display:flex;align-items:center;gap:12px}
-    .plant{border:1px solid #ddd;padding:10px;margin:10px 0;border-radius:8px}
+    :root{--primary:#0a84ff;--muted:#666;--card:#fff;--border:#e6e6e6}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:12px; max-width:720px;color:#111;background:#fafafa}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+    h1{font-size:1.25rem;margin:0}
+    .card{background:var(--card);border:1px solid var(--border);padding:12px;border-radius:10px;margin-bottom:12px}
     label{display:block;margin-top:8px;font-weight:600}
-    input,button,select,textarea{width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid #ccc}
+    input,button,textarea,select{width:100%;padding:8px;margin-top:6px;border-radius:8px;border:1px solid #ccc;font-size:1rem}
     .row{display:flex;gap:8px}
     .row > *{flex:1}
-    img.thumb{max-width:100%;border-radius:6px;margin-top:8px}
-    .small{font-size:0.9rem;color:#555}
+    .thumb{max-width:100%;border-radius:8px;margin-top:8px;display:block}
+    .small{font-size:0.9rem;color:var(--muted)}
     .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-    .chip{padding:6px 10px;border-radius:20px;background:#f1f1f1;border:1px solid #e0e0e0;cursor:pointer}
-    .chip.active{background:#0a84ff;color:#fff;border-color:#0a84ff}
-    .hint{font-size:0.85rem;color:#666;margin-top:6px}
-    #resetDefaults{margin-top:8px;background:#f8f8f8;border:1px solid #ddd}
+    .chip{padding:6px 12px;border-radius:20px;background:#f1f1f1;border:1px solid #e0e0e0;cursor:pointer;user-select:none}
+    .chip.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+    .hint{font-size:0.85rem;color:var(--muted);margin-top:6px}
+    .btn-primary{background:var(--primary);color:#fff;border:none}
+    .btn-muted{background:#f8f8f8;border:1px solid #ddd}
     .status-ok{color:green}
     .status-warn{color:orange}
     .status-err{color:red}
+    .plant{border:1px solid #eee;padding:10px;margin:10px 0;border-radius:8px;background:#fff}
+    @media (min-width:640px){ input,button,textarea,select{font-size:1.05rem} }
   </style>
 </head>
 <body>
@@ -30,51 +35,50 @@
     <h1>植物澆水紀錄</h1>
   </header>
 
-  <div>
+  <main class="card" id="mainCard">
     <label>選擇或輸入植物名稱</label>
     <input id="plantInput" type="text" placeholder="輸入植物名稱或點選下方建議" autocomplete="off" />
-    <div class="chips" id="suggestions"></div>
-    <div class="hint">建議：點選一個常見植物或直接輸入你的植物名稱（支援自訂）。</div>
+    <div class="chips" id="suggestions" aria-hidden="false"></div>
+    <div class="hint">點選建議或輸入自訂名稱；儲存後會加入建議清單。</div>
 
     <label>目標重量 (g)</label>
-    <input id="targetWeight" type="number" min="0" />
+    <input id="targetWeight" type="number" min="0" inputmode="numeric" />
 
     <label>目前重量 (g)</label>
-    <input id="currentWeight" type="number" min="0" />
+    <input id="currentWeight" type="number" min="0" inputmode="numeric" />
 
-    <div class="row">
-      <button id="compareBtn">比較重量</button>
-      <button id="takePhotoBtn">拍照 / 選照片</button>
+    <div class="row" style="margin-top:8px">
+      <button id="compareBtn" class="btn-muted">比較重量</button>
+      <button id="takePhotoBtn" class="btn-muted">拍照 / 選照片</button>
     </div>
 
     <input id="photoInput" type="file" accept="image/*;capture=camera" style="display:none" />
 
-    <div id="photoPreview"></div>
+    <div id="photoPreview" aria-live="polite"></div>
 
     <label>說明 / 備註</label>
     <input id="note" type="text" placeholder="例如：葉子有點黃" />
 
     <div class="row" style="margin-top:10px">
-      <button id="waterBtn" style="background:#0a84ff;color:#fff">記錄澆水</button>
-      <button id="savePlantBtn">儲存植物設定</button>
+      <button id="waterBtn" class="btn-primary">記錄澆水</button>
+      <button id="savePlantBtn" class="btn-muted">儲存植物設定</button>
     </div>
 
-    <button id="resetDefaults">重置建議為預設</button>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="resetDefaults" class="btn-muted" style="flex:1">重置建議為預設</button>
+      <div id="status" class="small" style="flex:2;text-align:right"></div>
+    </div>
+  </main>
 
-    <div id="status" class="small" style="margin-top:10px"></div>
-  </div>
-
-  <hr />
-
-  <h2>紀錄</h2>
-  <div id="records"></div>
+  <section class="card">
+    <h2 style="margin:0 0 8px 0">紀錄</h2>
+    <div id="records" class="small">載入中…</div>
+  </section>
 
 <script>
-/* Keys */
+/* ---------- Keys and defaults ---------- */
 const plantsKey = 'plants_v1';
 const recordsKey = 'records_v1';
-
-/* Default suggestions */
 const defaultPlants = [
   {name:'日本松樹', target:3000},
   {name:'山烏龜', target:1500},
@@ -88,7 +92,7 @@ const defaultPlants = [
   {name:'檸檬樹', target:4000}
 ];
 
-/* Safe localStorage set wrapper */
+/* ---------- Safe localStorage wrapper ---------- */
 function safeSetItem(key, value){
   try {
     localStorage.setItem(key, value);
@@ -99,19 +103,17 @@ function safeSetItem(key, value){
   }
 }
 
-/* Load plants with merge and repair logic */
+/* ---------- Plants load/save (merge defaults) ---------- */
 function loadPlants(){
   const raw = localStorage.getItem(plantsKey);
   let stored = [];
   try { stored = raw ? JSON.parse(raw) : []; } catch(e){ stored = []; }
-  // Merge defaults first, then apply stored (preserve user additions and overrides)
   const merged = defaultPlants.slice();
   stored.forEach(s=>{
     const idx = merged.findIndex(m=>m.name.toLowerCase() === s.name.toLowerCase());
     if(idx === -1) merged.push(s);
     else if(s.target) merged[idx].target = s.target;
   });
-  // Ensure all defaults present
   defaultPlants.forEach(d=>{
     if(!merged.some(m=>m.name.toLowerCase()===d.name.toLowerCase())) merged.push(d);
   });
@@ -120,10 +122,95 @@ function loadPlants(){
 }
 function savePlants(plants){ safeSetItem(plantsKey, JSON.stringify(plants)); }
 
+/* ---------- Records load/save ---------- */
 function loadRecords(){ return JSON.parse(localStorage.getItem(recordsKey) || '[]'); }
-function saveRecords(r){ safeSetItem(recordsKey, JSON.stringify(r)); }
+function saveRecordsArray(arr){ safeSetItem(recordsKey, JSON.stringify(arr)); }
 
-/* UI elements */
+/* ---------- IndexedDB helper (photos store) ---------- */
+function openDb(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open('plant-db', 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', {keyPath:'id'});
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function savePhotoBlob(blob){
+  const db = await openDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction('photos','readwrite');
+    const store = tx.objectStore('photos');
+    const id = 'p' + Date.now() + Math.floor(Math.random()*1000);
+    const putReq = store.add({id, blob});
+    putReq.onsuccess = ()=> resolve(id);
+    putReq.onerror = e => reject(e.target.error);
+  });
+}
+
+async function getPhotoBlob(id){
+  if(!id) return null;
+  const db = await openDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction('photos','readonly');
+    const store = tx.objectStore('photos');
+    const req = store.get(id);
+    req.onsuccess = e => resolve(e.target.result ? e.target.result.blob : null);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function deletePhotoBlob(id){
+  if(!id) return;
+  const db = await openDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction('photos','readwrite');
+    const store = tx.objectStore('photos');
+    const req = store.delete(id);
+    req.onsuccess = ()=> resolve();
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+/* ---------- Migration: Base64 photo -> IndexedDB Blob ---------- */
+async function migrateBase64PhotosToIndexedDB(){
+  const recs = loadRecords();
+  let changed = false;
+  for(let i=0;i<recs.length;i++){
+    const r = recs[i];
+    if(r.photo && !r.photoId){
+      try {
+        const blob = base64ToBlob(r.photo);
+        const photoId = await savePhotoBlob(blob);
+        r.photoId = photoId;
+        delete r.photo;
+        changed = true;
+      } catch(e){
+        console.warn('Migration failed for record', r.id, e);
+      }
+    }
+  }
+  if(changed) saveRecordsArray(recs);
+}
+
+/* helper: convert dataURL to Blob */
+function base64ToBlob(dataURL){
+  const parts = dataURL.split(',');
+  const meta = parts[0] || '';
+  const base64 = parts[1] || '';
+  const mimeMatch = meta.match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  const binary = atob(base64);
+  const len = binary.length;
+  const u8 = new Uint8Array(len);
+  for(let i=0;i<len;i++) u8[i] = binary.charCodeAt(i);
+  return new Blob([u8], {type:mime});
+}
+
+/* ---------- UI elements ---------- */
 const plantInput = document.getElementById('plantInput');
 const suggestionsDiv = document.getElementById('suggestions');
 const targetWeight = document.getElementById('targetWeight');
@@ -141,7 +228,8 @@ const recordsDiv = document.getElementById('records');
 
 let currentPhotoBlob = null;
 
-/* Render suggestion chips */
+/* ---------- Suggestions rendering ---------- */
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function renderSuggestions(){
   const plants = loadPlants();
   const list = plants.slice(0,10);
@@ -158,11 +246,9 @@ function renderSuggestions(){
     });
   });
 }
-function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
 renderSuggestions();
 
-/* Input handling */
+/* ---------- Input handlers ---------- */
 plantInput.addEventListener('input', ()=>{
   const name = plantInput.value.trim();
   if(!name){ targetWeight.value = ''; suggestionsDiv.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); return; }
@@ -175,7 +261,7 @@ plantInput.addEventListener('input', ()=>{
   });
 });
 
-/* Save plant target */
+/* ---------- Save plant ---------- */
 savePlantBtn.addEventListener('click', ()=>{
   const name = plantInput.value.trim();
   const tgt = Number(targetWeight.value) || null;
@@ -190,7 +276,7 @@ savePlantBtn.addEventListener('click', ()=>{
   showStatus(`已儲存 ${name} 的目標重量 ${tgt} g。`,'ok');
 });
 
-/* Compare */
+/* ---------- Compare ---------- */
 compareBtn.addEventListener('click', ()=>{
   const cur = Number(currentWeight.value);
   const tgt = Number(targetWeight.value);
@@ -200,7 +286,7 @@ compareBtn.addEventListener('click', ()=>{
   else showStatus(`目前比目標少 ${Math.abs(diff)} g，可能需要澆水。`,'warn');
 });
 
-/* Photo input */
+/* ---------- Photo input ---------- */
 takePhotoBtn.addEventListener('click', ()=> photoInput.click());
 photoInput.addEventListener('change', (e)=>{
   const f = e.target.files && e.target.files[0];
@@ -210,8 +296,8 @@ photoInput.addEventListener('change', (e)=>{
   photoPreview.innerHTML = `<img class="thumb" src="${url}" alt="photo">`;
 });
 
-/* Record watering */
-waterBtn.addEventListener('click', ()=>{
+/* ---------- Record saving (uses IndexedDB for photos) ---------- */
+waterBtn.addEventListener('click', async ()=>{
   const plantName = plantInput.value.trim();
   if(!plantName){ showStatus('請先輸入或選擇植物名稱。','err'); return; }
   const cur = Number(currentWeight.value) || null;
@@ -221,9 +307,15 @@ waterBtn.addEventListener('click', ()=>{
   const recs = loadRecords();
   const id = 'r'+Date.now();
 
-  function pushRecord(photoData){
-    recs.unshift({id, plantName, cur, tgt, note, date:now, photo:photoData});
-    saveRecords(recs);
+  async function trySaveRecord(photoId){
+    recs.unshift({id, plantName, cur, tgt, note, date:now, photoId});
+    const ok = safeSetItem(recordsKey, JSON.stringify(recs));
+    if(!ok){
+      recs.shift();
+      showStatus('儲存失敗：本機儲存空間不足。請刪除舊紀錄或啟用雲端同步。','err');
+      if(photoId) { try { await deletePhotoBlob(photoId); } catch(e){ console.warn('Failed to delete orphan photo', photoId, e); } }
+      return;
+    }
     currentPhotoBlob = null;
     photoPreview.innerHTML = '';
     noteInput.value = '';
@@ -233,59 +325,89 @@ waterBtn.addEventListener('click', ()=>{
   }
 
   if(currentPhotoBlob){
-    const reader = new FileReader();
-    reader.onload = function(){
-      const base64 = reader.result;
-      pushRecord(base64);
-    };
-    reader.readAsDataURL(currentPhotoBlob);
+    try {
+      const photoId = await savePhotoBlob(currentPhotoBlob);
+      await trySaveRecord(photoId);
+    } catch(e){
+      console.error('Error saving photo to IndexedDB', e);
+      showStatus('儲存照片失敗，請重試或選擇較小的照片。','err');
+    }
   } else {
-    pushRecord(null);
+    await trySaveRecord(null);
   }
 });
 
-/* Days since helper and render records */
+/* ---------- Render records (fetch photo blobs by photoId) ---------- */
 function daysSince(iso){
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();
   return Math.floor(diff / 86400000);
 }
-function renderRecords(){
+
+async function renderRecords(){
   const recs = loadRecords();
   if(recs.length===0){ recordsDiv.innerHTML = '<p class="small">尚無紀錄</p>'; return; }
   recordsDiv.innerHTML = recs.map(r=>{
     const days = daysSince(r.date);
-    const photoHtml = r.photo ? `<img class="thumb" src="${r.photo}" />` : '';
     const curTxt = r.cur ? `${r.cur} g` : '未量';
     const tgtTxt = r.tgt ? `${r.tgt} g` : '未設定';
-    return `<div class="plant">
-      <strong>${escapeHtml(r.plantName)}</strong> <div class="small">澆水：${new Date(r.date).toLocaleString()}（${days} 天前）</div>
+    const photoHtml = r.photoId ? `<img class="thumb" data-photoid="${r.photoId}" src="" alt="photo" />` : '';
+    return `<div class="plant" data-id="${r.id}">
+      <strong>${escapeHtml(r.plantName)}</strong>
+      <div class="small">澆水：${new Date(r.date).toLocaleString()}（${days} 天前）</div>
       <div class="small">目前重量：${curTxt}；目標：${tgtTxt}</div>
       ${photoHtml}
       <div class="small">備註：${escapeHtml(r.note) || '-'}</div>
     </div>`;
   }).join('');
-}
-renderRecords();
 
-/* Reset defaults button */
+  const imgs = recordsDiv.querySelectorAll('img[data-photoid]');
+  imgs.forEach(async img => {
+    const pid = img.getAttribute('data-photoid');
+    try {
+      const blob = await getPhotoBlob(pid);
+      if(blob){
+        const url = URL.createObjectURL(blob);
+        img.src = url;
+      } else {
+        img.remove();
+      }
+    } catch(e){
+      console.warn('Failed to load photo blob', pid, e);
+      img.remove();
+    }
+  });
+}
+
+/* ---------- Reset defaults ---------- */
 resetDefaultsBtn.addEventListener('click', ()=>{
   if(!confirm('確定要重置建議為預設？會覆蓋目前建議清單。')) return;
   safeSetItem(plantsKey, JSON.stringify(defaultPlants));
   location.reload();
 });
 
-/* Status helper */
+/* ---------- Status helper ---------- */
 function showStatus(msg, level){
   status.textContent = msg;
   status.className = 'small';
   if(level === 'ok') status.classList.add('status-ok');
   else if(level === 'warn') status.classList.add('status-warn');
   else if(level === 'err') status.classList.add('status-err');
-  setTimeout(()=>{ status.textContent=''; status.className='small'; }, 3000);
+  setTimeout(()=>{ status.textContent=''; status.className='small'; }, 3500);
 }
 
-/* Register service worker with relative path for GitHub Pages subpath compatibility */
+/* ---------- Startup: migrate then render ---------- */
+(async function startup(){
+  try {
+    renderSuggestions();
+    await migrateBase64PhotosToIndexedDB();
+    await renderRecords();
+  } catch(e){
+    console.error('Startup error', e);
+  }
+})();
+
+/* ---------- Service worker registration (relative path) ---------- */
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('./sw.js').catch(()=>{ /* ignore registration errors */ });
 }
