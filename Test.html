@@ -1,3 +1,6 @@
+### index.html
+
+```html
 <!doctype html>
 <html lang="zh-HK">
 <head>
@@ -66,6 +69,7 @@
 
     <div style="display:flex;gap:8px;margin-top:8px">
       <button id="resetDefaults" class="btn-muted" style="flex:1">重置建議為預設</button>
+      <button id="clearAllDataBtn" class="btn-muted" style="flex:1;background:#ffecec;border-color:#f5c2c2">清除所有本機資料</button>
       <div id="status" class="small" style="flex:2;text-align:right"></div>
     </div>
   </main>
@@ -223,6 +227,7 @@ const noteInput = document.getElementById('note');
 const waterBtn = document.getElementById('waterBtn');
 const savePlantBtn = document.getElementById('savePlantBtn');
 const resetDefaultsBtn = document.getElementById('resetDefaults');
+const clearAllDataBtn = document.getElementById('clearAllDataBtn');
 const status = document.getElementById('status');
 const recordsDiv = document.getElementById('records');
 
@@ -379,12 +384,65 @@ async function renderRecords(){
   });
 }
 
+/* ---------- Clear all local data (localStorage, IndexedDB, caches, service worker) ---------- */
+async function clearAllLocalData(){
+  if(!confirm('確定要清除所有本機資料？此操作會刪除所有紀錄、設定與儲存的照片，且無法復原。')) return;
+  showStatus('正在清除本機資料…', 'warn');
+
+  // 1. Clear localStorage keys used by app
+  try {
+    localStorage.removeItem(plantsKey);
+    localStorage.removeItem(recordsKey);
+  } catch(e){
+    console.warn('localStorage clear error', e);
+  }
+
+  // 2. Delete IndexedDB database used for photos
+  try {
+    const delReq = indexedDB.deleteDatabase('plant-db');
+    await new Promise((resolve, reject) => {
+      delReq.onsuccess = () => resolve();
+      delReq.onerror = () => resolve(); // resolve even on error to continue cleanup
+      delReq.onblocked = () => resolve();
+    });
+  } catch(e){
+    console.warn('IndexedDB delete error', e);
+  }
+
+  // 3. Clear caches (if any)
+  try {
+    if(window.caches && caches.keys){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch(e){
+    console.warn('Cache clear error', e);
+  }
+
+  // 4. Unregister service workers
+  try {
+    if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+  } catch(e){
+    console.warn('Service worker unregister error', e);
+  }
+
+  // 5. Final UI reset and reload
+  showStatus('本機資料已清除，頁面將重新載入。', 'ok');
+  setTimeout(()=> location.reload(true), 800);
+}
+
 /* ---------- Reset defaults ---------- */
 resetDefaultsBtn.addEventListener('click', ()=>{
   if(!confirm('確定要重置建議為預設？會覆蓋目前建議清單。')) return;
   safeSetItem(plantsKey, JSON.stringify(defaultPlants));
   location.reload();
 });
+
+/* ---------- Clear all data button ---------- */
+clearAllDataBtn.addEventListener('click', clearAllLocalData);
 
 /* ---------- Status helper ---------- */
 function showStatus(msg, level){
@@ -414,3 +472,4 @@ if('serviceWorker' in navigator){
 </script>
 </body>
 </html>
+```
