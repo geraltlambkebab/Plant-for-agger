@@ -1,7 +1,7 @@
 {
   "name": "植物澆水紀錄",
   "short_name": "澆水紀錄",
-  "start_url": "/Plant-for-agger/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0a84ff",
