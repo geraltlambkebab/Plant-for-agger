@@ -1,5 +1,5 @@
 // Versioned cache name: 每次重大更新請改變此字串
-const CACHE_NAME = 'plant-app-v4';
+const CACHE_NAME = 'plant-app-v5';
 const FILES_TO_CACHE = [
   './',
   './index.html',
