@@ -1,11 +1,11 @@
 // Versioned cache name: 每次重大更新請改變此字串
-const CACHE_NAME = 'plant-app-v3';
+const CACHE_NAME = 'plant-app-v4';
 const FILES_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  './Plant-for-agger/icon-192.png',
+  './Plant-for-agger/icon-512.png'
 ];
 
 self.addEventListener('install', event => {
